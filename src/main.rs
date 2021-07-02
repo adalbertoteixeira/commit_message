@@ -1,9 +1,11 @@
 extern crate clap;
 use clap::{App, Arg};
-use log::{error, info};
+use log::{debug, error, info};
+use std::io::{self, Write};
 use std::process::Command;
 use std::str;
 extern crate log;
+use regex::Regex;
 
 fn main() {
     env_logger::init();
@@ -39,6 +41,14 @@ fn main() {
                 .takes_value(true)
                 .required(true),
         )
+        .arg(
+            Arg::with_name("prefix")
+                .short("p")
+                .long("prefix")
+                .value_name("prefix")
+                .help("Issue prefix")
+                .takes_value(true),
+        )
         .get_matches();
 
     let mut output_string: String = "".to_owned();
@@ -46,18 +56,67 @@ fn main() {
     // Add type of PR
     if matches.is_present("type") {
         let pr_type = matches.value_of("type").unwrap();
-        println!("Hello args: {:?}", matches);
-        println!("Hello type: {:?}", &pr_type);
         output_string.push_str(pr_type);
     }
 
     // Add scope
     if matches.is_present("scope") {
-        match matches.value_of("scope") {
-            Some(scope) => {
-                output_string.push_str("(");
-                output_string.push_str(scope);
-                output_string.push_str(")");
+        let scope = matches.value_of("scope").unwrap();
+        output_string.push_str("(");
+        output_string.push_str(scope);
+        output_string.push_str(")");
+    }
+
+    // Get current branch
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("git rev-parse --abbrev-ref HEAD")
+        .output()
+        .unwrap();
+    debug!("Git branch request is {:?}", output.status);
+
+    if output.status.success() {
+        let branch = str::from_utf8(&output.stdout)
+            .unwrap()
+            .strip_suffix("\n")
+            .unwrap();
+        info!("Git branch message is {:?}", &branch);
+
+        // Get prefix from param
+        if matches.is_present("prefix") {
+            let prefix = matches.value_of("prefix").unwrap();
+            debug!("Prefix to use is {:?}", prefix);
+
+            let mut raw_regex_string = r"".to_owned();
+            raw_regex_string.push_str(prefix);
+            let re = Regex::new(&raw_regex_string).unwrap();
+            match re.captures(branch) {
+                Some(v) => {
+                    info!("{:?}", &v);
+                    output_string.push_str(": ");
+                    output_string.push_str(&v[0]);
+                    output_string.push_str(" ");
+                }
+                None => {
+                    println!("NONE!");
+                }
+            };
+        } else {
+            output_string.push_str(": ");
+            output_string.push_str(branch);
+            output_string.push_str(" ");
+        };
+    } else {
+        let error = str::from_utf8(&output.stderr).unwrap();
+        error!("{:?}", error);
+        return;
+    }
+
+    // Add message
+    if matches.is_present("message") {
+        match matches.value_of("message") {
+            Some(message) => {
+                output_string.push_str(message);
             }
             None => {
                 error!("No scope defined");
@@ -65,21 +124,7 @@ fn main() {
             }
         };
     }
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg("git rev-parse --abbrev-ref HEAD")
-        .output()
-        .expect("failed to execute process");
-    println!("Hello args: #{:?}", output);
-    let status = output.status.code().unwrap();
-    if !output.status.success() {
-        info!("ERROR");
-        error!("Erroe");
-        // return;
-    }
-    info!("status: {:?}, {:?}", status, output.status.success());
-
-    let _branch = str::from_utf8(&output.stderr).unwrap();
-    // io::stdout().write_all(&output.stdout).unwrap();
-    println!("{:?}", output_string);
+    let stdout = io::stdout(); // get the global stdout entity
+    let mut handle = io::BufWriter::new(stdout); // optional: wrap that handle in a buffer
+    writeln!(handle, "{}", output_string).unwrap_or_default(); // add `?` if you care about errors here
 }
