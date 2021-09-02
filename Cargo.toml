@@ -2,6 +2,14 @@
 name = "commit_message"
 version = "0.1.0"
 edition = "2018"
+authors = ["Adalberto Teixeira <adalberto.teixeira@cdigital.pt>"]
+license = "MIT"
+description = "A conventional commit helper utility."
+readme = "README.md"
+homepage = "https://github.com/adalbertoteixeira/commitmessage"
+repository = "https://github.com/adalbertoteixeira/commitmessage"
+keywords = ["cli"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,3 +18,8 @@ clap = "2.33.3"
 log = "0.4"
 env_logger = "0.8.4"
 regex = "0.2"
+serde_json = "1.0"
+
+[dev-dependencies]
+assert_cmd = "0.10"
+predicates = "1"
