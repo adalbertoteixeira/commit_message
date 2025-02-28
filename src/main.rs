@@ -38,16 +38,16 @@ fn main() {
                 .help("Type of PR"), // .possible_values(&possible_types_slice)
                                      // .default_value(&possible_types_slice[0]),
         )
-        // .arg(
-        //     Arg::with_name("scope")
-        //         .short("s")
-        //         .long("scope")
-        //         .value_name("type")
-        //         .help("Scope of changes")
-        //         // .possible_values(&possible_scopes_slice)
-        //         .takes_value(true),
-        //     // .default_value(&possible_scopes_slice[0]),
-        // )
+        .arg(
+            Arg::with_name("scope")
+                .short("s")
+                .long("scope")
+                .value_name("type")
+                .help("Scope of changes")
+                // .possible_values(&possible_scopes_slice)
+                .takes_value(true),
+            // .default_value(&possible_scopes_slice[0]),
+        )
         .arg(
             Arg::with_name("message")
                 .short("m")
@@ -248,7 +248,6 @@ fn main() {
         Ok(selection) => {
             if selection {
                 pr_template = Some(prompts::pr_template_prompt());
-                writeln!(handle, "{}", &pr_template.clone().unwrap()).unwrap_or_default();
             }
         }
         Err(_) => {
@@ -266,6 +265,11 @@ fn main() {
             &git_branch,
             &pr_template,
         );
+    }
+    if pr_template.is_some() {
+        let mut pr_template_message = "\n\x1b[1;32mYour PR template is below. You can copy it and add it to Github PR descripton:\x1b[1;0m\n\n".to_owned();
+        pr_template_message.push_str(&pr_template.unwrap());
+        writeln!(handle, "{}", pr_template_message).unwrap_or_default();
     }
 }
 

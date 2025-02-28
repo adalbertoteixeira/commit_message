@@ -267,7 +267,10 @@ pub fn pr_template_prompt() -> String {
     };
 
     if selected_risk_factor.is_some() {
-        pr_template += &format!("# 🚦 This is a {} risk PR\n", selected_risk_factor.unwrap());
+        pr_template += &format!(
+            "\n# 🚦 This is a {} risk PR\n",
+            selected_risk_factor.unwrap()
+        );
     }
     //
     let risk_factor_description_prompt = Editor::new("Describe why this risk factor was selected")
@@ -286,7 +289,7 @@ pub fn pr_template_prompt() -> String {
         pr_template += &"\n";
     }
 
-    pr_template += &"## 🧪 How to manually test this PR";
+    pr_template += &"\n## 🧪 How to manually test this PR";
     let manual_testing_description_prompt =
         Editor::new("Describe how to manually test this PR").with_help_message("Create a simple, bullet pointed list, step by step on how to test. Make sure you call out the need for any extra config/services. Make it EASY for the person reviewing your PR").prompt();
     let manual_testing_description: Option<String> = match manual_testing_description_prompt {
@@ -301,7 +304,7 @@ pub fn pr_template_prompt() -> String {
         pr_template += &"1.";
         pr_template += &"\n";
     }
-    pr_template += &"## 🎯 This PR matters because....";
+    pr_template += &"\n## 🎯 This PR matters because....";
     let pr_importance_description_prompt =
         Editor::new("Describe why this PR is important").with_help_message(
     "Explain with this PR is important. Use bullet points. What will it do for the customer / users / devs?"
@@ -317,13 +320,13 @@ pub fn pr_template_prompt() -> String {
     } else {
         pr_template += &"1.";
     }
-    pr_template += &"## 📸 ... and this is what it does!
+    pr_template += &"\n## 📸 ... and this is what it does!
 <!---
 - Ideally show, don't tell.
 - Bonus points for GIFs
---->";
+--->\n";
 
-    pr_template += "## Good PR check list\n";
+    pr_template += "\n## Good PR check list\n";
 
     let has_description_x = match has_description {
         true => "x",
