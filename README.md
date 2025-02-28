@@ -59,6 +59,7 @@ yarn commit -h
 
 
 ## @TODO
+- [ ] add tests;
 - [ ] add support for scopes;
 - [ ] cleanup old commit message files;
 - [ ] add support for other languages;
