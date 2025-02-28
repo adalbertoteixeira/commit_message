@@ -11,9 +11,14 @@ message;
 
 
 ## Install
-Currently only manual build is supported. There are plans to use a package manager to install the
+Currently only manual build or release binary donwload is supported. There are plans to use a package manager to install the
 tool using npm or similar.
 
+### Download binary
+Navigate to the releases tab and donwload the latest `commit_message` file. Currently only built for
+macOs.
+
+### Local build
 Clone the repository and run
 
 ```{sh}
