@@ -1,8 +1,7 @@
 use log::{debug, error, info};
-use serde_json::Value;
+use std::process;
 use std::process::Command;
 use std::str;
-use std::{fs, process};
 
 pub fn top_level(directory: &str) {
     let cmd_arg = format!("cd {directory} && git rev-parse --show-toplevel");
@@ -30,40 +29,3 @@ pub fn git_branch(directory: &str) -> String {
     info!("Current branch is: {}", current_branch);
     return current_branch.to_owned();
 }
-// pub fn path_utils() {
-//     let mut package_path = "".to_owned();
-//     let repo_root_stdout = str::from_utf8(&repo_root_output.stdout)
-//         .unwrap()
-//         .strip_suffix('\n')
-//         .unwrap();
-//     package_path.push_str(&repo_root_stdout);
-//     package_path.push_str("/package.json");
-//     let package_data = fs::read_to_string(package_path).expect("Unable to read file");
-//     let parsed_package_data: Value = serde_json::from_str(&package_data).unwrap();
-//     debug!("{:?}", &parsed_package_data["config"]["commitizen"]);
-//
-//     // let package_data = fs::read_to_string(&package_path).expect("Unable to read file");
-//     // writeln!(handle, "{:?}", &package_data).unwrap_or_default();
-//
-//     debug!(
-//         "Scopes: {:?}",
-//         &parsed_package_data["config"]["commitizen"]["scopes"]
-//     );
-//
-//     let possible_scopes = parsed_package_data["config"]["commitizen"]["scopes"]
-//         .as_array()
-//         .unwrap();
-//
-//     let mut possible_scopes_slice: Vec<&str> = vec![];
-//     //= &possible_scopes;
-//     for item in possible_scopes.iter() {
-//         possible_scopes_slice.push(&item.as_str().unwrap());
-//     }
-//     debug!("{:?}", &possible_scopes_slice);
-//
-//     debug!("Possible scopes{:?}", &possible_scopes);
-//     // let scope_values
-//     let possible_types_slice = [
-//         "feat", "fix", "docs", "refactor", "test", "build", "ci", "revert", "chore",
-//     ];
-// }

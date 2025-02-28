@@ -1,30 +1,23 @@
 extern crate clap;
-pub mod branch_utils;
+mod branch_utils;
 pub mod path_utils;
+pub mod storage;
 use clap::{App, Arg};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::{
     io::{self, Write},
-    os::unix::process,
+    process::{self, Command},
+    str,
 };
+use storage::load_branch_config;
+pub mod prompts;
 extern crate log;
-use inquire::{
-    formatter::OptionFormatter,
-    list_option::ListOption,
-    ui::{Color, RenderConfig, Styled},
-    validator::{StringValidator, Validation},
-    CustomUserError, MultiSelect, Select, Text,
-};
+use inquire::Confirm;
 
 fn main() {
     env_logger::init();
     let stdout = io::stdout(); // get the global stdout entity
-    let mut handle = io::BufWriter::new(stdout); // optional: wrap that handle in a buffer
-
-    // let possible_scopes_array = Vec::new();
-    // for s in &possible_scopes.iter() {
-    // possible_scopes_array.push(s.read_to_string());
-    // }
+    let mut handle = io::BufWriter::new(&stdout); // optional: wrap that handle in a buffer
 
     let matches = App::new("Commit Message Builder")
         .version("1.0")
@@ -45,16 +38,16 @@ fn main() {
                 .help("Type of PR"), // .possible_values(&possible_types_slice)
                                      // .default_value(&possible_types_slice[0]),
         )
-        .arg(
-            Arg::with_name("scope")
-                .short("s")
-                .long("scope")
-                .value_name("type")
-                .help("Scope of changes")
-                // .possible_values(&possible_scopes_slice)
-                .takes_value(true),
-            // .default_value(&possible_scopes_slice[0]),
-        )
+        // .arg(
+        //     Arg::with_name("scope")
+        //         .short("s")
+        //         .long("scope")
+        //         .value_name("type")
+        //         .help("Scope of changes")
+        //         // .possible_values(&possible_scopes_slice)
+        //         .takes_value(true),
+        //     // .default_value(&possible_scopes_slice[0]),
+        // )
         .arg(
             Arg::with_name("message")
                 .short("m")
@@ -72,16 +65,43 @@ fn main() {
                 .help("Issue prefix")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("config_directory")
+                .short("c")
+                .help("Config directory to store the tools global information.")
+                .env("COMMIT_TOOL_CONFIG_DIRECTORY")
+                .takes_value(true),
+        )
         .get_matches();
 
+    let config_directory_matches = matches.value_of("config_directory").unwrap_or("");
+    let config_editor_matches = matches.value_of("editor").unwrap_or("");
+    info!("Configured editor is {:?}", config_editor_matches);
+    let _ = storage::setup_commit_tool(config_directory_matches, config_editor_matches);
     debug!("Arguments: {:?}", matches);
     let directory = matches.value_of("directory").unwrap_or(".");
+
     info!("Base directory is {:?}", directory);
     path_utils::top_level(&directory);
     let git_branch = path_utils::git_branch(&directory);
     let team_prefix = "INF";
     let issue_id = branch_utils::issue_id(&git_branch);
+    let message_name;
+    if matches.is_present("message") {
+        message_name = matches
+            .value_of("message")
+            .unwrap()
+            .to_string()
+            .to_lowercase();
+    } else {
+        message_name = branch_utils::branch_name(&git_branch)
+            .to_lowercase()
+            .chars()
+            .take(55)
+            .collect::<String>();
+    };
 
+    let mut can_build_default_message = true;
     let mut output_text: String = "\n\x1b[1;1mCommit utility\x1b[0m\n".to_owned();
     output_text.push_str("- Working in directory ");
     output_text.push_str(&format!("\x1b[1;1m{}\x1b[0m\n", &directory));
@@ -89,201 +109,164 @@ fn main() {
     output_text.push_str(&format!("\x1b[1;1m{}\x1b[0m\n", &git_branch));
     output_text.push_str("- Team prefix is ");
     output_text.push_str(&format!("\x1b[1;1m{}\x1b[0m\n", &team_prefix));
-    output_text.push_str("- Issue id is ");
-    output_text.push_str(&format!("\x1b[1;1m{}\x1b[0m\n", &issue_id));
-
+    if !&issue_id.is_empty() {
+        output_text.push_str("- Issue id is ");
+        output_text.push_str(&format!("\x1b[1;1m{}\x1b[0m\n", &issue_id));
+    } else {
+        can_build_default_message = false;
+        output_text.push_str(&format!("\x1b[1;31m- No issue id found\x1b[0m\n"));
+    }
+    if !&message_name.is_empty() {
+        output_text.push_str("- Message name is ");
+        output_text.push_str(&format!("\x1b[1;1m{}\x1b[0m\n", &message_name));
+    } else {
+        can_build_default_message = false;
+        output_text.push_str(&format!("\x1b[1;31m- No message name found\x1b[0m\n"));
+    }
+    let is_new_branch = storage::setup_branch_env(&git_branch, &directory).unwrap();
+    if is_new_branch == false {
+        let _ = load_branch_config(&git_branch, directory);
+    }
+    info!("Is new branch: {}", &is_new_branch);
+    let (proposed_type, used_types) =
+        branch_utils::find_changed_file_types(directory, &is_new_branch);
+    info!("Proposed types: {:?}", &proposed_type);
+    if proposed_type.is_none() {
+        can_build_default_message = false;
+    }
+    info!("Used types: {:?}", &used_types);
     writeln!(handle, "{}", output_text).unwrap_or_default();
+
+    warn!("Can build message: {}", &can_build_default_message);
     let _ = handle.flush();
+    let mut will_accept_suggested_message = false;
+    let mut commit_message = "".to_owned();
+    if can_build_default_message {
+        let mut proposed_output_string: String = "".to_owned();
+        proposed_output_string.push_str(&format!(
+            "{}: {} [{}] #{}",
+            &proposed_type.clone().unwrap(),
+            &message_name,
+            &team_prefix,
+            &issue_id
+        ));
+        info!("Will propose default message: {}", &proposed_output_string);
+        let mut proposed_ouput_message = "".to_owned();
+        proposed_ouput_message
+            .push_str("We have enough information to propose the following commit message:\n\n");
+        proposed_ouput_message.push_str(&format!("\x1b[1;32m{}\x1b[1;0m", &proposed_output_string));
+        proposed_ouput_message.push_str("\n");
+        writeln!(handle, "{}", proposed_ouput_message).unwrap_or_default();
+        let _ = handle.flush();
+        let confimation_prompt = Confirm::new("Do you want to accept the proposed message?")
+            .with_default(true)
+            .prompt();
 
-    let selected_issue_id_prompt = Text::new("Select issue ID")
-        .with_default(&issue_id)
-        .prompt();
+        will_accept_suggested_message = match confimation_prompt {
+            Ok(selection) => {
+                commit_message = proposed_output_string;
+                selection
+            }
 
-    let selected_issue_id = match selected_issue_id_prompt {
-        Ok(issue_id) => issue_id,
-        Err(_) => {
-            println!("An error happened when selecting the issue id, try again.");
-            std::process::exit(1);
+            Err(_) => {
+                print!("Did not understand your input.");
+                process::exit(1);
+            }
         }
-    };
-
-    let selected_team_prefix_prompt = Text::new("Select team prefix")
-        .with_default(&team_prefix)
-        .prompt();
-
-    let selected_team_prefix = match selected_team_prefix_prompt {
-        Ok(team) => team,
-        Err(_) => {
-            println!("An error happened when selecting the team, try again.");
-            std::process::exit(1);
-        }
-    };
-
-    let type_options: Vec<&str> = vec![
-"feat: A new feature",
-"fix: A bug fix",
-"docs: Documentation only changes",
-"style: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)",
-"refactor: A code change that neither fixes a bug nor adds a feature",
-"perf: A code change that improves performance",
-"test: Adding missing tests or correcting existing tests",
-"build: Changes that affect the build system or external dependencies (example scopes: gulp, broccoli, npm)",
-"ci: Changes to our CI configuration files and scripts (example scopes: Travis, Circle, BrowserStack, SauceLabs)",
-"chore: Other changes that don't modify src or test files",
-"revert: Reverts a previous commit",
-    ];
-
-    fn get_short_type(type_str: &str) -> String {
-        let parts = type_str.split(": ").collect::<Vec<&str>>();
-        let type_short = match parts.get(0) {
-            Some(x) => x,
-            None => "Unknown",
-        };
-        return type_short.to_string();
     }
 
-    let type_formatter: OptionFormatter<&str> = &|i| {
-        return get_short_type(i.value);
-    };
+    let mut additional_commit_message = vec![];
+    if !will_accept_suggested_message {
+        let mut output_string: String = "".to_owned();
+        let selected_issue_id = prompts::issue_id_prompt(&issue_id);
+        let selected_team_prefix = prompts::team_prefix_prompt(&team_prefix);
+        let selected_type = prompts::select_types_prompt(&proposed_type);
+        info!("Selected type: {}", selected_type);
 
-    let selected_types_propmpt = Select::new("Select change type", type_options)
-        .with_formatter(type_formatter)
-        .prompt();
+        let scope_options: Vec<&str> = vec![
+            "web: Work related to front end",
+            "api: work related to the back end",
+            "devops: work related to infrastructure, tools, etc.",
+        ];
 
-    let selected_type = match selected_types_propmpt {
-        Ok(type_str) => get_short_type(type_str),
-        Err(_) => {
-            println!("An error happened when selecting the team, try again.");
-            std::process::exit(1);
-        }
-    };
-    info!("Selected type: {}", selected_type);
-
-    let scope_options: Vec<&str> = vec![
-        "web: Work related to front end",
-        "api: work related to the back end",
-        "devops: work related to infrastructure, tools, etc.",
-    ];
-    // let selected_scope_propmpt = MultiSelect::new("Select scope of this change", scope_options)
-    //     .with_formatter(type_formatter)
-    //     .prompt();
-    //
-    // let selected_scope = match selected_scope_propmpt {
-    //     Ok(scope_str) => get_short_type(scope_str),
-    //     Err(_) => {
-    //         println!("An error happened when selecting the team, try again.");
-    //         std::process::exit(1);
-    //     }
-    // };
-    // fn description_render_config() -> RenderConfig<'static> {
-    //     RenderConfig::default()
-    //         .with_canceled_prompt_indicator(Styled::new("<skipped>").with_fg(Color::DarkYellow))
-    // }
-    // let help_message = format!("Current directory: ");
-    let message_prompt = Text::new("Enter commit message")
-        // .with_autocomplete(FilePathCompleter::default())
-        // .with_formatter(&|submission| {
-        //     let char_count = submission.chars().count();
-        //     if char_count == 0 {
-        //         String::from("<skipped>")
-        //     } else if char_count <= 20 {
-        //         submission.into()
-        //     } else {
-        //         let mut substr: String = submission.chars().take(17).collect();
-        //         substr.push_str("...");
-        //         substr
-        //     }
-        // })
-        // .with_render_config(description_render_config())
-        // .with_help_message(&help_message)
-        .with_validator(|input: &str| {
-            let length = input.chars().count();
-            // info!("Commit message length: {}", length);
-            if length > 55 {
-                Ok(Validation::Invalid(
-                    format!(
-                        "Commit message limit is 55 characters. You have {}.",
-                        length
-                    )
-                    .into(),
-                ))
-            } else {
-                Ok(Validation::Valid)
+        let message = prompts::select_message_prompt(&git_branch);
+        output_string.push_str(&format!(
+            // "\x1b[1;32m{}: {} [{}] #{}\x1b[1;0m",
+            "{}: {} [{}] #{}",
+            selected_type,
+            message.to_lowercase(),
+            selected_team_prefix,
+            selected_issue_id
+        ));
+        let additional_message = prompts::select_additional_message_prompt();
+        if additional_message.is_some() {
+            info!("Additional message: {:?}", &additional_message);
+            for line in additional_message.unwrap().split("\n") {
+                info!("Additional message line : {}", line);
+                additional_commit_message.push(line.to_owned());
             }
-        })
-        .prompt();
-
-    let message = match message_prompt {
-        Ok(message) => message,
-        Err(_) => {
-            println!("An error happened when selecting the commit message, try again.");
-            std::process::exit(1);
         }
-    };
-    let mut output_string: String = "".to_owned();
-    output_string.push_str(&format!(
-        "{}: {} [{}] #{}",
-        selected_type,
-        message.to_lowercase(),
-        selected_team_prefix,
-        selected_issue_id
-    ));
-    // println!("Selected type: {}", selected_type);
-    // Add scope
-    if matches.is_present("scope") {
-        let scope = matches.value_of("scope").unwrap();
-        output_string.push_str("(");
-        output_string.push_str(scope);
-        output_string.push_str(")");
+
+        // Add scope
+        if matches.is_present("scope") {
+            let scope = matches.value_of("scope").unwrap();
+            output_string.push_str("(");
+            output_string.push_str(scope);
+            output_string.push_str(")");
+        }
+
+        // Add message
+        if matches.is_present("message") {
+            match matches.value_of("message") {
+                Some(message) => {
+                    output_string.push_str(message);
+                }
+                None => {
+                    error!("No scope defined");
+                    return;
+                }
+            };
+        }
+        commit_message = output_string.clone();
+        if additional_commit_message.len() > 0 {
+            output_string.push_str("\x1b[1;32m\n");
+            for line in &additional_commit_message {
+                output_string.push_str(&format!("\n{}", line));
+            }
+            output_string.push_str("\x1b[1;0m");
+        }
+        writeln!(handle, "{}", output_string).unwrap_or_default();
+        let _ = handle.flush();
     }
 
-    // Get current branch
+    let mut pr_template = None;
+    let pr_template_prompt = Confirm::new("Do you want to build a PR template?")
+        .with_default(is_new_branch)
+        .prompt();
 
-    // if output.status.success() {
-    //
-    //     // Get prefix from param
-    //     if matches.is_present("prefix") {
-    //         let prefix = matches.value_of("prefix").unwrap();
-    //         info!("Prefix to use is {:?}", prefix);
-    //
-    //         let mut raw_regex_string = r"".to_owned();
-    //         raw_regex_string.push_str(prefix);
-    //         let re = Regex::new(&raw_regex_string).unwrap();
-    //         info!("Regex to ook for is{:?}", &re);
-    //         match re.captures(branch) {
-    //             Some(v) => {
-    //                 info!("{:?}", &v);
-    //                 output_string.push_str(&v[0]);
-    //                 output_string.push_str(" ");
-    //             }
-    //             None => {
-    //                 println!("NONE!");
-    //             }
-    //         };
-    //     } else {
-    //         // output_string.push_str(": ");
-    //         output_string.push_str(branch);
-    //         output_string.push_str(" ");
-    //     };
-    // } else {
-    //     let error = str::from_utf8(&output.stderr).unwrap();
-    //     error!("{:?}", error);
-    //     return;
-    // }
-
-    // Add message
-    if matches.is_present("message") {
-        match matches.value_of("message") {
-            Some(message) => {
-                output_string.push_str(message);
+    match pr_template_prompt {
+        Ok(selection) => {
+            if selection {
+                pr_template = Some(prompts::pr_template_prompt());
+                writeln!(handle, "{}", &pr_template.clone().unwrap()).unwrap_or_default();
             }
-            None => {
-                error!("No scope defined");
-                return;
-            }
-        };
+        }
+        Err(_) => {
+            print!("Did not understand your input.");
+            process::exit(1);
+        }
     }
-    writeln!(handle, "{}", output_string).unwrap_or_default(); // add `?` if you care about errors here
+
+    let will_commit_pr = prompts::commit_pr_prompt();
+    if will_commit_pr == true {
+        let _ = branch_utils::commit_pr(
+            directory,
+            &commit_message,
+            additional_commit_message.clone(),
+            &git_branch,
+            &pr_template,
+        );
+    }
 }
 
 #[test]
