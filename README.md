@@ -34,6 +34,11 @@ After the binary and the install command is set up, just run just run `[yarn | n
 
 You can also trigger the tool manually using `./scripts/commit_message`.
 
+You can use flags in the command. The most useful one is the custom commit message (`-m "..."`). 
+
+If you are committing several PRs to the same branch then type, prefix and id shouldn't change or will be
+extracted automatically, but the commit message will probably be different every time.
+
 
 The first time the tool is run an editor setup prompt will appear. For now only terminal based
 `$EDITOR`s are mentioned, plus how to install VSCode usage.
@@ -45,6 +50,7 @@ Help is available at any time by running
 ```{sh}
 yarn commit -h
 ```
+![help](static_files/help.gif)
 
 
 ## @TODO
@@ -56,4 +62,5 @@ yarn commit -h
 - [ ] allow usage in Github Actions to automatically update the fields like labels based on scopes,
 etc).
 - [ ] allow using a config file at the repository level;
-- [ ] automate adding`.commit_message` to the `.gitignore` file.
+- [ ] automate adding`.commit_message` to the `.gitignore` file;
+- [ ] allow reuse of existing PR template (changing fields if necessary).
