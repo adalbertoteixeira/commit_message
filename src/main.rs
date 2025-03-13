@@ -66,6 +66,14 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("show_pr_template")
+                .short("r")
+                .long("show-pr-template")
+                .value_name("show-pr-template")
+                .help("Show PR template")
+                .takes_value(false),
+        )
+        .arg(
             Arg::with_name("config_directory")
                 .short("c")
                 .help("Config directory to store the tools global information.")
@@ -83,7 +91,12 @@ fn main() {
 
     info!("Base directory is {:?}", directory);
     path_utils::top_level(&directory);
+
     let git_branch = path_utils::git_branch(&directory);
+    if matches.is_present("show_pr_template") {
+        storage::load_commit_template(&git_branch, &directory);
+        process::exit(0);
+    }
     let team_prefix = "INF";
     let issue_id = branch_utils::issue_id(&git_branch);
     let message_name;

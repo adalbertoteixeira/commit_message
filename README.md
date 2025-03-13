@@ -7,15 +7,16 @@ Tool to automate the creation of PRs for JavaScript repositories.
 message;
 - Helps build a Github PR template and automatically check tasks.
 - Extracts id and name from the branch name;
-- Extracts type (and, in the future, scope) from the changed files.
+- Extracts type (and, in the future, scope) from the changed files;
+- Output the pre-build pr template by passing `-r`.
 
 
 ## Install
-Currently only manual build or release binary donwload is supported. There are plans to use a package manager to install the
+Currently only manual build or release binary download is supported. There are plans to use a package manager to install the
 tool using npm or similar.
 
 ### Download binary
-Navigate to the releases tab and donwload the latest `commit_message` file. Currently only built for
+Navigate to the releases tab and download the latest `commit_message` file. Currently only built for
 macOs.
 
 ### Local build
@@ -63,7 +64,7 @@ yarn commit -h
 - [ ] add support for scopes;
 - [ ] cleanup old commit message files;
 - [ ] add support for other languages;
-- [ ] installl the library using yarn;
+- [ ] install the library using yarn;
 - [ ] support for different systems (currently only macOS is tested);
 - [ ] allow usage in Github Actions to automatically update the fields like labels based on scopes,
 etc).
