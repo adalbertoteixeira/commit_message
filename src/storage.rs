@@ -98,18 +98,27 @@ pub fn load_commit_template(git_branch: &str, directory: &str) {
     let mut handle = io::BufWriter::new(&stdout); // optional: wrap that handle in a buffer
     let path = Path::new(directory).join(".commit_message");
     let file_path = Path::new(&path).join(format!("{}.yaml", &git_branch));
-    let file = fs::File::open(&file_path).expect("Failed to open file");
-    let reader = io::BufReader::new(file);
-    let file_read: BranchYamlConfig = serde_yml::from_reader(reader).expect("Failed to parse YAML");
-    if file_read.pr_template.is_none() {
-        writeln!(handle, "{}", "No saved commit template found").unwrap_or_default();
-        let _ = handle.flush();
-        process::exit(0);
-    }
+    match fs::File::open(&file_path) {
+        Ok(file) => {
+            let reader = io::BufReader::new(file);
+            let file_read: BranchYamlConfig =
+                serde_yml::from_reader(reader).expect("Failed to parse YAML");
+            if file_read.pr_template.is_none() {
+                writeln!(handle, "{}", "No saved commit template found").unwrap_or_default();
+                let _ = handle.flush();
+                process::exit(0);
+            }
 
-    writeln!(handle, "{}", file_read.pr_template.unwrap()).unwrap_or_default();
-    let _ = handle.flush();
-    process::exit(0);
+            writeln!(handle, "{}", file_read.pr_template.unwrap()).unwrap_or_default();
+            let _ = handle.flush();
+            process::exit(0);
+        }
+        Err(_) => {
+            writeln!(handle, "{}", "No previous file found.").unwrap_or_default();
+            let _ = handle.flush();
+            process::exit(0)
+        }
+    }
 }
 
 pub fn load_branch_config(git_branch: &str, directory: &str) {
