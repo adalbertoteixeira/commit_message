@@ -98,7 +98,7 @@ fn main() {
         process::exit(0);
     }
     let team_prefix = "INF";
-    let issue_id = branch_utils::issue_id(&git_branch);
+    let mut issue_id = branch_utils::issue_id(&git_branch);
     let message_name;
     if matches.is_present("message") {
         message_name = matches
@@ -192,6 +192,7 @@ fn main() {
     if !will_accept_suggested_message {
         let mut output_string: String = "".to_owned();
         let selected_issue_id = prompts::issue_id_prompt(&issue_id);
+        issue_id = selected_issue_id;
         let selected_team_prefix = prompts::team_prefix_prompt(&team_prefix);
         let selected_type = prompts::select_types_prompt(&proposed_type);
         info!("Selected type: {}", selected_type);
@@ -209,7 +210,7 @@ fn main() {
             selected_type,
             message.to_lowercase(),
             selected_team_prefix,
-            selected_issue_id
+            issue_id
         ));
         let additional_message = prompts::select_additional_message_prompt();
         if additional_message.is_some() {
@@ -260,7 +261,7 @@ fn main() {
     match pr_template_prompt {
         Ok(selection) => {
             if selection {
-                pr_template = Some(prompts::pr_template_prompt());
+                pr_template = Some(prompts::pr_template_prompt(&issue_id));
             }
         }
         Err(_) => {

@@ -228,11 +228,12 @@ pub fn commit_pr_prompt() -> bool {
     return answer;
 }
 
-pub fn pr_template_prompt() -> String {
+pub fn pr_template_prompt(issue_id: &str) -> String {
     let mut pr_template = "".to_owned();
     let mut has_description = false;
 
-    let pr_description_prompt = Editor::new("Write a short description for your PR").prompt();
+    let pr_description_prompt =
+        Editor::new("Write a description for your PR and explain why it's important").prompt();
     let pr_description: Option<String> = match pr_description_prompt {
         Ok(x) => Some(x),
         Err(_) => None,
@@ -281,6 +282,7 @@ pub fn pr_template_prompt() -> String {
         Err(_) => None,
     };
     if risk_factor_description.is_some() {
+        pr_template += &"Because...";
         pr_template += &"\n";
         pr_template += &risk_factor_description.unwrap();
         pr_template += &"\n";
@@ -304,27 +306,6 @@ pub fn pr_template_prompt() -> String {
         pr_template += &"1.";
         pr_template += &"\n";
     }
-    pr_template += &"\n## 🎯 This PR matters because....";
-    let pr_importance_description_prompt =
-        Editor::new("Describe why this PR is important").with_help_message(
-    "Explain with this PR is important. Use bullet points. What will it do for the customer / users / devs?"
-    ).prompt();
-    let pr_importance_description: Option<String> = match pr_importance_description_prompt {
-        Ok(x) => Some(x),
-        Err(_) => None,
-    };
-    if pr_importance_description.is_some() {
-        pr_template += &"\n";
-        pr_template += &pr_importance_description.unwrap();
-        pr_template += &"\n";
-    } else {
-        pr_template += &"1.";
-    }
-    pr_template += &"\n## 📸 ... and this is what it does!
-<!---
-- Ideally show, don't tell.
-- Bonus points for GIFs
---->\n";
 
     pr_template += "\n## Good PR check list\n";
 
@@ -333,18 +314,21 @@ pub fn pr_template_prompt() -> String {
         false => " ",
     };
     pr_template += &format!(
-        "- [{}] ✍️ I wrote an easy-to-read, short description at the top, with a good title",
+        "- [{}] ✍️ I wrote an easy-to-read, short description at the top, with a good title\n",
         has_description_x
     )
     .to_string();
+    pr_template += &format!(
+        "- [x] 🔗 I linked this PR to an issue (which is in progress): related to #{}",
+        issue_id
+    )
+    .to_string();
     pr_template += &"
-- [ ] 🔗 I linked this PR to an issue (which is in progress) using `Fixes #NUMBER` format
 - [ ] 📋 I filled out the risk level, how to test, impact, what the PR does
 - [ ] 🏷️ I added the right labels. [api? BENApp? someOtherApp?]
 - [ ] 🥸 I assigned myself to the PR and others (as needed)
 - [ ] 🚀 I moved the PR into ready state - it's ready to be reviewed!
-- [ ] 🤖 I enabled auto merge
-- [ ] 🤔 I DIDN'T assign to a project, milestone or development to this PR (its not needed)"
+- [ ] 🤖 I enabled auto merge"
         .to_string();
     info!("PR template:\n{}", pr_template);
     return pr_template.to_owned();
