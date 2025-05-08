@@ -1,16 +1,16 @@
-use chrono::{format::format, prelude::*};
+use chrono::prelude::*;
 use homedir::my_home;
 use std::{
     fs::{self, File},
     io::{self, Write},
     path::{Path, PathBuf},
-    process::{self, Command},
+    process::{self},
 };
 
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::{branch_utils, prompts};
+use crate::{branch_utils, prompts, ux_utils};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct BranchYamlConfig {
@@ -150,12 +150,12 @@ pub fn load_branch_config(git_branch: &str, directory: &str) {
         let _ = handle.flush();
         let will_commit_pr = prompts::commit_pr_prompt();
         if will_commit_pr == true {
-            let _ = branch_utils::commit_pr(
+            ux_utils::commit_and_push(
                 directory,
-                &previous_commit_message,
-                previous_commit_message_additional_messages.clone(),
-                &git_branch,
-                &Some(previous_pr_template),
+                previous_commit_message,
+                previous_commit_message_additional_messages,
+                git_branch,
+                Some(previous_pr_template),
             );
             process::exit(0);
         }

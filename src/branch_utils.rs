@@ -199,7 +199,7 @@ pub fn commit_pr(
     additional_commit_message: Vec<String>,
     git_branch: &str,
     pr_template: &Option<String>,
-) -> Option<i32> {
+) -> Result<Option<i32>, io::Error> {
     let mut cmd_arg = format!(
         r#"cd {} && git commit -m  "{}""#,
         &directory, &commit_message
@@ -230,8 +230,8 @@ pub fn commit_pr(
     bar.finish();
     io::stderr().write_all(&output.stderr).unwrap();
     io::stdout().write_all(&output.stdout).unwrap();
-    // @TODO: if pr exits, store information on the file that we might want to reuse the message
-    let _ = storage::save_branch_config(
+    debug!("Commit message result is {:?}", output.status.code());
+    let branch_config_save_result = storage::save_branch_config(
         &git_branch,
         &directory,
         pr_template.clone(),
@@ -239,5 +239,35 @@ pub fn commit_pr(
         Some(additional_commit_message.clone()),
         output.status.code(),
     );
+    debug!(
+        "Save config result is {:?}",
+        branch_config_save_result.is_ok()
+    );
+    Ok(output.status.code())
+}
+
+pub fn push_pr(directory: &str) -> Option<i32> {
+    let cmd_arg = format!(r#"cd {} && git push"#, &directory);
+    info!("Executing command: {}", cmd_arg);
+    let stdout = io::stdout(); // get the global stdout entity
+    let mut handle = io::BufWriter::new(&stdout); // optional: wrap that handle in a buffer
+    writeln!(
+        handle,
+        "{}",
+        "Pushing branch. This might take some time depending on the pre-commit hooks."
+    )
+    .unwrap_or_default();
+    let _ = handle.flush();
+    let bar = ProgressBar::new_spinner();
+    bar.enable_steady_tick(Duration::from_millis(100));
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(cmd_arg)
+        .output()
+        .expect("Failed to run  process");
+
+    bar.finish();
+    io::stderr().write_all(&output.stderr).unwrap();
+    io::stdout().write_all(&output.stdout).unwrap();
     output.status.code()
 }

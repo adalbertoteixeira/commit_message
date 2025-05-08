@@ -228,6 +228,19 @@ pub fn commit_pr_prompt() -> bool {
     return answer;
 }
 
+pub fn push_pr_prompt() -> bool {
+    let push_pr_prompt_answer = Confirm::new("Push this branch?")
+        .with_default(false)
+        .prompt();
+
+    let answer = match push_pr_prompt_answer {
+        Ok(response) => response,
+        Err(_) => process::exit(1),
+    };
+
+    return answer;
+}
+
 pub fn pr_template_prompt(issue_id: &str) -> String {
     let mut pr_template = "".to_owned();
     let mut has_description = false;
@@ -319,7 +332,7 @@ pub fn pr_template_prompt(issue_id: &str) -> String {
     )
     .to_string();
     pr_template += &format!(
-        "- [x] 🔗 I linked this PR to an issue (which is in progress): related to #{}",
+        "- [x] 🔗 I linked this PR to an issue (which is in progress): fixes #{}",
         issue_id
     )
     .to_string();

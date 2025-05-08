@@ -1,12 +1,13 @@
 extern crate clap;
-mod branch_utils;
+pub mod branch_utils;
 pub mod path_utils;
 pub mod storage;
+pub mod ux_utils;
 use clap::{App, Arg};
 use log::{debug, error, info, warn};
 use std::{
     io::{self, Write},
-    process::{self, Command},
+    process::{self},
     str,
 };
 use storage::load_branch_config;
@@ -197,7 +198,7 @@ fn main() {
         let selected_type = prompts::select_types_prompt(&proposed_type);
         info!("Selected type: {}", selected_type);
 
-        let scope_options: Vec<&str> = vec![
+        let _scope_options: Vec<&str> = vec![
             "web: Work related to front end",
             "api: work related to the back end",
             "devops: work related to infrastructure, tools, etc.",
@@ -270,20 +271,54 @@ fn main() {
         }
     }
 
+    info!("Will ask for commit");
     let will_commit_pr = prompts::commit_pr_prompt();
+
+    info!("Commit was defined: {}", will_commit_pr);
     if will_commit_pr == true {
-        let _ = branch_utils::commit_pr(
+        ux_utils::commit_and_push(
             directory,
-            &commit_message,
+            commit_message,
             additional_commit_message.clone(),
             &git_branch,
-            &pr_template,
+            pr_template,
         );
-    }
-    if pr_template.is_some() {
-        let mut pr_template_message = "\n\x1b[1;32mYour PR template is below. You can copy it and add it to Github PR descripton:\x1b[1;0m\n\n".to_owned();
-        pr_template_message.push_str(&pr_template.unwrap());
-        writeln!(handle, "{}", pr_template_message).unwrap_or_default();
+        // let commit_pr_exit_code = branch_utils::commit_pr(
+        //     directory,
+        //     &commit_message,
+        //     additional_commit_message.clone(),
+        //     &git_branch,
+        //     &pr_template,
+        // );
+
+        // info!("Will commit pr exit code");
+        // let commit_fail_message =
+        //     "\n\x1b[1;31mCommit failed. Please fix the issue before commiting.\x1b[1;0m\n\n"
+        //         .to_owned();
+        // if commit_pr_exit_code.is_err() {
+        //     debug!("Commit PR exit code is err");
+        //     writeln!(handle, "{}", &commit_fail_message).unwrap_or_default();
+        //     let _ = handle.flush();
+        //     process::exit(1);
+        // }
+
+        // debug!("commit_pr_exit_code {:?}", commit_pr_exit_code);
+        // debug!("EXIT CODE 2 {:?}", &commit_pr_exit_code);
+        // debug!(
+        //     "commit_pr_exit_code: {:?}, {:?}, {:?}",
+        //     commit_pr_exit_code,
+        //     commit_pr_exit_code, //.is_none(),
+        //     commit_pr_exit_code, //.is_some_and(|x| x != 0)
+        // );
+        // let commit_pr_exit_code_result = &commit_pr_exit_code.unwrap();
+        // debug!("commit_pr_exit_code {:?}", commit_pr_exit_code_result);
+        // if commit_pr_exit_code_result.is_none()
+        //     || commit_pr_exit_code_result.is_some_and(|x| x != 0)
+        // {
+        //     writeln!(handle, "{}", commit_fail_message).unwrap_or_default();
+        //     let _ = handle.flush();
+        //     process::exit(1);
+        // }
     }
 }
 
